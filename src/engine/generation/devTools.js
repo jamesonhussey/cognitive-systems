@@ -438,6 +438,278 @@ export function devShowRelationship(char1, char2) {
 }
 
 /**
+ * List all special relationships (friendships, rivalries, love interests)
+ * Now shows reciprocity status!
+ */
+export function devListRelationships(type = 'all') {
+  const office = window._lastOffice;
+  if (!office) {
+    console.log('No office generated. Run devGenerateOffice() first.');
+    return;
+  }
+  
+  console.log('%c=== RELATIONSHIP LISTINGS ===', 'color: #22d3ee; font-weight: bold; font-size: 14px;');
+  
+  // Track pairs to avoid duplicates and detect reciprocity
+  const seenPairs = new Set();
+  const friendships = { mutual: [], oneSided: [] };
+  const rivalries = { mutual: [], oneSided: [] };
+  const loveInterests = { mutual: [], oneSided: [] };
+  
+  office.forEach((char, charIndex) => {
+    char.relationships.forEach(rel => {
+      // Create unique pair key
+      const otherId = rel.id;
+      const pairKey = [char.id, otherId].sort().join('-');
+      
+      // Skip if we've already processed this pair
+      if (seenPairs.has(pairKey + rel.status)) return;
+      seenPairs.add(pairKey + rel.status);
+      
+      // Find the other character
+      const otherChar = office.find(c => c.id === otherId);
+      if (!otherChar) return;
+      const otherIndex = office.indexOf(otherChar);
+      
+      // Check reciprocity
+      const reverseRel = otherChar.relationships.find(r => r.id === char.id);
+      const reverseStatus = reverseRel?.status || 'stranger';
+      
+      if (rel.status === 'friend' || rel.status === 'close_friend') {
+        const isMutual = reverseStatus === 'friend' || reverseStatus === 'close_friend';
+        const entry = {
+          a: char, aIndex: charIndex, aTrust: rel.trustLevel,
+          b: otherChar, bIndex: otherIndex, bTrust: reverseRel?.trustLevel || 'NONE',
+          type: rel.status === 'close_friend' ? 'close_friend' : 'friend',
+          notes: rel.notes
+        };
+        
+        if (isMutual) {
+          friendships.mutual.push(entry);
+        } else {
+          entry.bStatus = reverseStatus;
+          friendships.oneSided.push(entry);
+        }
+      }
+      
+      if (rel.status === 'rival') {
+        const isMutual = reverseStatus === 'rival';
+        const entry = {
+          a: char, aIndex: charIndex, aTrust: rel.trustLevel,
+          b: otherChar, bIndex: otherIndex, bTrust: reverseRel?.trustLevel || 'NONE',
+          notes: rel.notes
+        };
+        
+        if (isMutual) {
+          rivalries.mutual.push(entry);
+        } else {
+          entry.bStatus = reverseStatus;
+          rivalries.oneSided.push(entry);
+        }
+      }
+      
+      if (rel.status === 'love_interest') {
+        const isMutual = reverseStatus === 'love_interest';
+        const entry = {
+          a: char, aIndex: charIndex, aTrust: rel.trustLevel,
+          b: otherChar, bIndex: otherIndex, bTrust: reverseRel?.trustLevel || 'NONE',
+          notes: rel.notes
+        };
+        
+        if (isMutual) {
+          loveInterests.mutual.push(entry);
+        } else {
+          entry.bStatus = reverseStatus;
+          loveInterests.oneSided.push(entry);
+        }
+      }
+    });
+  });
+  
+  if (type === 'all' || type === 'friends') {
+    console.log('%c--- FRIENDSHIPS ---', 'color: #22c55e; font-weight: bold;');
+    
+    if (friendships.mutual.length > 0) {
+      console.log('%cMutual:', 'color: #22c55e;');
+      friendships.mutual.forEach(f => {
+        const typeLabel = f.type === 'close_friend' ? '★ CLOSE' : '';
+        console.log(`  [${f.aIndex}] ${f.a.fullName} ↔ ${f.b.fullName} [${f.bIndex}] ${typeLabel}`);
+        console.log(`    Trust: ${f.aTrust} / ${f.bTrust}`);
+      });
+    }
+    
+    if (friendships.oneSided.length > 0) {
+      console.log('%cOne-sided:', 'color: #888;');
+      friendships.oneSided.forEach(f => {
+        console.log(`  [${f.aIndex}] ${f.a.fullName} → ${f.b.fullName} (sees as ${f.bStatus})`);
+        console.log(`    Trust: ${f.aTrust} / ${f.bTrust}`);
+      });
+    }
+    
+    if (friendships.mutual.length === 0 && friendships.oneSided.length === 0) {
+      console.log('  (None)');
+    }
+    console.log('');
+  }
+  
+  if (type === 'all' || type === 'rivals') {
+    console.log('%c--- RIVALRIES ---', 'color: #f97316; font-weight: bold;');
+    
+    if (rivalries.mutual.length > 0) {
+      console.log('%cMutual:', 'color: #f97316;');
+      rivalries.mutual.forEach(r => {
+        console.log(`  [${r.aIndex}] ${r.a.fullName} ↔ ${r.b.fullName} [${r.bIndex}]`);
+        console.log(`    Trust: ${r.aTrust} / ${r.bTrust}`);
+      });
+    }
+    
+    if (rivalries.oneSided.length > 0) {
+      console.log('%cOne-sided:', 'color: #888;');
+      rivalries.oneSided.forEach(r => {
+        console.log(`  [${r.aIndex}] ${r.a.fullName} → ${r.b.fullName} (sees as ${r.bStatus})`);
+        console.log(`    Trust: ${r.aTrust} / ${r.bTrust}`);
+      });
+    }
+    
+    if (rivalries.mutual.length === 0 && rivalries.oneSided.length === 0) {
+      console.log('  (None)');
+    }
+    console.log('');
+  }
+  
+  if (type === 'all' || type === 'love') {
+    console.log('%c--- LOVE INTERESTS ---', 'color: #ec4899; font-weight: bold;');
+    
+    if (loveInterests.mutual.length > 0) {
+      console.log('%cMutual:', 'color: #ec4899;');
+      loveInterests.mutual.forEach(l => {
+        console.log(`  [${l.aIndex}] ${l.a.fullName} ↔ ${l.b.fullName} [${l.bIndex}] ❤️`);
+        console.log(`    Trust: ${l.aTrust} / ${l.bTrust}`);
+      });
+    }
+    
+    if (loveInterests.oneSided.length > 0) {
+      console.log('%cUnrequited:', 'color: #888;');
+      loveInterests.oneSided.forEach(l => {
+        console.log(`  [${l.aIndex}] ${l.a.fullName} → ${l.b.fullName} 💔 (sees as ${l.bStatus})`);
+        console.log(`    Trust: ${l.aTrust} / ${l.bTrust}`);
+      });
+    }
+    
+    if (loveInterests.mutual.length === 0 && loveInterests.oneSided.length === 0) {
+      console.log('  (None)');
+    }
+    console.log('');
+  }
+  
+  // Summary
+  console.log('%c--- SUMMARY ---', 'color: #888;');
+  console.log(`Friendships: ${friendships.mutual.length} mutual, ${friendships.oneSided.length} one-sided`);
+  console.log(`Rivalries: ${rivalries.mutual.length} mutual, ${rivalries.oneSided.length} one-sided`);
+  console.log(`Love Interests: ${loveInterests.mutual.length} mutual, ${loveInterests.oneSided.length} unrequited`);
+  console.log('');
+  
+  console.log('%cUse devInspect(index) to view full character details', 'color: #888; font-style: italic;');
+  console.log('%cUse devShowRelationship(index1, index2) to see mutual view', 'color: #888; font-style: italic;');
+}
+
+/**
+ * List all phantom/external relationships
+ */
+export function devListPhantoms() {
+  const office = window._lastOffice;
+  if (!office) {
+    console.log('No office generated. Run devGenerateOffice() first.');
+    return;
+  }
+  
+  console.log('%c=== PHANTOM/EXTERNAL RELATIONSHIPS ===', 'color: #22d3ee; font-weight: bold; font-size: 14px;');
+  
+  // Group by phantom type
+  const byType = {
+    family: [],
+    friend: [],
+    ex_partner: [],
+    ex_employee: [],
+    mentor: [],
+    enemy: []
+  };
+  
+  office.forEach((char, charIndex) => {
+    if (char.phantoms) {
+      char.phantoms.forEach(p => {
+        if (byType[p.type]) {
+          byType[p.type].push({ char, charIndex, phantom: p });
+        }
+      });
+    }
+  });
+  
+  const typeLabels = {
+    family: { name: 'FAMILY', color: '#a78bfa' },
+    friend: { name: 'EXTERNAL FRIENDS', color: '#22c55e' },
+    ex_partner: { name: 'EX-PARTNERS', color: '#ec4899' },
+    ex_employee: { name: 'FORMER COLLEAGUES', color: '#f97316' },
+    mentor: { name: 'MENTORS', color: '#3b82f6' },
+    enemy: { name: 'ENEMIES', color: '#ef4444' }
+  };
+  
+  for (const [type, items] of Object.entries(byType)) {
+    if (items.length === 0) continue;
+    
+    const label = typeLabels[type];
+    console.log(`%c--- ${label.name} (${items.length}) ---`, `color: ${label.color}; font-weight: bold;`);
+    
+    items.forEach(({ char, charIndex, phantom }) => {
+      console.log(`[${charIndex}] ${char.fullName} has: ${phantom.fullName} (${phantom.role})`);
+      console.log(`    %c"${phantom.notes}"`, 'color: #888; font-style: italic;');
+    });
+    console.log('');
+  }
+}
+
+/**
+ * Show characters by disposition
+ */
+export function devListByDisposition(dispositionName = null) {
+  const office = window._lastOffice;
+  if (!office) {
+    console.log('No office generated. Run devGenerateOffice() first.');
+    return;
+  }
+  
+  const dispositions = ['true_believer', 'content', 'neutral', 'skeptical', 'suspicious'];
+  const colors = {
+    true_believer: '#22c55e',
+    content: '#84cc16',
+    neutral: '#eab308',
+    skeptical: '#f97316',
+    suspicious: '#ef4444'
+  };
+  
+  const filter = dispositionName ? [dispositionName.toLowerCase().replace(' ', '_')] : dispositions;
+  
+  console.log('%c=== CHARACTERS BY DISPOSITION ===', 'color: #22d3ee; font-weight: bold; font-size: 14px;');
+  
+  for (const dispId of filter) {
+    const chars = office.filter(c => c.disposition?.id === dispId);
+    if (chars.length === 0) continue;
+    
+    const dispName = chars[0].disposition.name;
+    console.log(`%c--- ${dispName.toUpperCase()} (${chars.length}) ---`, `color: ${colors[dispId]}; font-weight: bold;`);
+    
+    chars.forEach(char => {
+      const index = office.indexOf(char);
+      const traits = char.traits.map(t => t.name).slice(0, 3).join(', ');
+      console.log(`[${index}] ${char.fullName} - ${char.role.title}`);
+      console.log(`    Traits: ${traits}`);
+      console.log(`    Mood: ${char.state.mood} | Stress: ${char.state.stress}`);
+    });
+    console.log('');
+  }
+}
+
+/**
  * Initialize dev tools on window
  */
 export function initDevTools() {
@@ -447,20 +719,26 @@ export function initDevTools() {
     window.devListCharacters = devListCharacters;
     window.devInspect = devInspect;
     window.devShowRelationship = devShowRelationship;
+    window.devListRelationships = devListRelationships;
+    window.devListPhantoms = devListPhantoms;
+    window.devListByDisposition = devListByDisposition;
     window.devShowFileSystem = devShowFileSystem;
     window.devShowTraits = devShowTraits;
     window.devShowDepartments = devShowDepartments;
     
     console.log('%c[Character Generation Dev Tools Loaded]', 'color: #22d3ee; font-weight: bold;');
     console.log('%cAvailable commands:', 'color: #888;');
-    console.log('  devGenerateOffice()       - Generate full office');
-    console.log('  devListCharacters()       - List all characters with indices');
-    console.log('  devInspect(0)             - Inspect character by index');
-    console.log('  devInspect("Sarah")       - Inspect character by name');
-    console.log('  devShowRelationship(0,1)  - Show how two characters view each other');
-    console.log('  devShowFileSystem()       - Show inspected character\'s files');
-    console.log('  devGenerateOne()          - Generate one standalone character');
-    console.log('  devShowTraits()           - List all traits');
-    console.log('  devShowDepartments()      - Show department structure');
+    console.log('  devGenerateOffice()         - Generate full office');
+    console.log('  devListCharacters()         - List all characters');
+    console.log('  devListRelationships()      - List friendships, rivalries, love interests');
+    console.log('  devListRelationships("love")- Filter: "friends", "rivals", "love"');
+    console.log('  devListPhantoms()           - List all external relationships');
+    console.log('  devListByDisposition()      - List by disposition');
+    console.log('  devListByDisposition("suspicious") - Filter by specific disposition');
+    console.log('  devInspect(0)               - Inspect character by index');
+    console.log('  devShowRelationship(0,1)    - Show mutual view between two');
+    console.log('  devShowFileSystem()         - Show inspected character\'s files');
+    console.log('  devShowTraits()             - List all traits');
+    console.log('  devShowDepartments()        - Show department structure');
   }
 }

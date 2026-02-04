@@ -21,7 +21,6 @@
 export { 
   generateOfficePopulation,
   generateCharacter,
-  generateRelationships,
   generateFileSystem
 } from './CharacterGenerator.js';
 
@@ -52,6 +51,17 @@ export {
   selectTraumaticMemories,
   generateMemoryContent
 } from './data/memories.js';
+export {
+  EVENT_COUNTS,
+  RECIPROCITY_RATES,
+  MUTUAL_TRUST_PAIRINGS,
+  ONE_SIDED_CONFIG,
+  EVENT_TYPES,
+  EVENT_MEMORIES,
+  pickTrustPairing,
+  shouldBeMutual,
+  getEventCount
+} from './data/relationshipEvents.js';
 
 // Schema (for extension)
 export { 

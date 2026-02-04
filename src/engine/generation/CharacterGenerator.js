@@ -35,6 +35,16 @@ import {
   generateMemoryDate,
   getRandomDetail
 } from './data/memories.js';
+import {
+  EVENT_TYPES,
+  EVENT_MEMORIES,
+  getEventCount,
+  shouldBeMutual,
+  pickTrustPairing,
+  pickTrust,
+  ONE_SIDED_CONFIG,
+  shouldGenerateMatchingMemory
+} from './data/relationshipEvents.js';
 
 /**
  * Generate a unique ID
@@ -69,7 +79,7 @@ export function generateOfficePopulation() {
   const characters = [];
   const rolesToFill = getAllRolesToFill();
   
-  // Generate characters for each role
+  // STEP 1: Generate all characters (basic data, traits, disposition, phantoms)
   for (const { departmentId, departmentName, role, count } of rolesToFill) {
     for (let i = 0; i < count; i++) {
       const character = generateCharacter({
@@ -82,22 +92,284 @@ export function generateOfficePopulation() {
     }
   }
   
-  // Second pass: generate relationships between characters
+  // STEP 2: Generate relationship EVENTS between pairs
+  const relationshipEvents = generateRelationshipEvents(characters);
+  
+  // STEP 3: Initialize empty relationships for all characters
   for (const character of characters) {
-    character.relationships = generateRelationships(character, characters);
+    character.relationships = [];
+    character.relationshipEvents = []; // Store events for memory generation
   }
   
-  // Third pass: generate priorities based on traits and relationships
+  // STEP 4: Apply relationship events (creates coordinated relationships)
+  applyRelationshipEvents(characters, relationshipEvents);
+  
+  // STEP 5: Fill in remaining relationships (colleagues, acquaintances)
+  for (const character of characters) {
+    fillRemainingRelationships(character, characters);
+  }
+  
+  // STEP 6: Generate priorities based on traits and relationships
   for (const character of characters) {
     character.priorities = generatePriorities(character.traits, character.relationships);
   }
   
-  // Fourth pass: generate complete file systems
+  // STEP 7: Generate complete file systems (including event memories)
   for (const character of characters) {
     character.fileSystem = generateFileSystem(character, characters);
   }
   
   return characters;
+}
+
+/**
+ * Generate relationship events between pairs of characters
+ */
+function generateRelationshipEvents(characters) {
+  const events = [];
+  
+  // Get counts for each category
+  const friendshipCount = getEventCount('friendships');
+  const romanceCount = getEventCount('romances');
+  const rivalryCount = getEventCount('rivalries');
+  
+  // Get all possible pairs (same floor or same department = more likely)
+  const possiblePairs = [];
+  for (let i = 0; i < characters.length; i++) {
+    for (let j = i + 1; j < characters.length; j++) {
+      const charA = characters[i];
+      const charB = characters[j];
+      
+      // Weight by proximity
+      let weight = 1;
+      if (charA.department.id === charB.department.id) weight = 5; // Same dept
+      else if (charA.role.floor === charB.role.floor) weight = 3; // Same floor
+      
+      possiblePairs.push({ a: charA, b: charB, weight });
+    }
+  }
+  
+  // Helper to pick a weighted random pair and remove it
+  const pickPair = () => {
+    if (possiblePairs.length === 0) return null;
+    
+    const totalWeight = possiblePairs.reduce((sum, p) => sum + p.weight, 0);
+    let roll = Math.random() * totalWeight;
+    
+    for (let i = 0; i < possiblePairs.length; i++) {
+      roll -= possiblePairs[i].weight;
+      if (roll <= 0) {
+        const pair = possiblePairs[i];
+        possiblePairs.splice(i, 1); // Remove so we don't reuse
+        return pair;
+      }
+    }
+    
+    // Fallback
+    return possiblePairs.pop();
+  };
+  
+  // Generate friendship events
+  for (let i = 0; i < friendshipCount; i++) {
+    const pair = pickPair();
+    if (!pair) break;
+    
+    const isMutual = shouldBeMutual('friendship');
+    const isClose = isMutual && Math.random() < 0.2; // 20% of mutual friendships are close
+    
+    let eventType;
+    if (isClose) {
+      eventType = EVENT_TYPES.CLOSE_MUTUAL_FRIENDSHIP;
+    } else if (isMutual) {
+      eventType = EVENT_TYPES.MUTUAL_FRIENDSHIP;
+    } else {
+      eventType = EVENT_TYPES.ONE_SIDED_FRIENDSHIP;
+    }
+    
+    events.push({
+      type: eventType,
+      characterA: pair.a,
+      characterB: pair.b,
+      category: 'friendship'
+    });
+  }
+  
+  // Generate romance events
+  for (let i = 0; i < romanceCount; i++) {
+    const pair = pickPair();
+    if (!pair) break;
+    
+    const isMutual = shouldBeMutual('romance');
+    const eventType = isMutual ? EVENT_TYPES.MUTUAL_ROMANCE : EVENT_TYPES.UNREQUITED_LOVE;
+    
+    events.push({
+      type: eventType,
+      characterA: pair.a,
+      characterB: pair.b,
+      category: 'romance'
+    });
+  }
+  
+  // Generate rivalry events
+  for (let i = 0; i < rivalryCount; i++) {
+    const pair = pickPair();
+    if (!pair) break;
+    
+    const isMutual = shouldBeMutual('rivalry');
+    const eventType = isMutual ? EVENT_TYPES.MUTUAL_RIVALRY : EVENT_TYPES.ONE_SIDED_GRUDGE;
+    
+    events.push({
+      type: eventType,
+      characterA: pair.a,
+      characterB: pair.b,
+      category: 'rivalry'
+    });
+  }
+  
+  return events;
+}
+
+/**
+ * Apply relationship events to characters
+ */
+function applyRelationshipEvents(characters, events) {
+  for (const event of events) {
+    const { type, characterA, characterB, category } = event;
+    
+    // Determine trust levels
+    let trustA, trustB;
+    
+    if (type.statusA === type.statusB) {
+      // Mutual relationship - use paired trust
+      const pairing = pickTrustPairing(category);
+      trustA = pairing.a;
+      trustB = pairing.b;
+    } else {
+      // One-sided relationship
+      const config = ONE_SIDED_CONFIG[category];
+      trustA = pickTrust(config.initiator.trustOptions);
+      trustB = pickTrust(config.target.trustOptions);
+    }
+    
+    // Create relationship on A for B
+    characterA.relationships.push({
+      id: characterB.id,
+      name: characterB.fullName,
+      role: characterB.role.title,
+      department: characterB.department.name,
+      status: type.statusA,
+      trustLevel: trustA,
+      notes: generateNote(type.statusA, trustA),
+      fromEvent: true
+    });
+    
+    // Create relationship on B for A
+    characterB.relationships.push({
+      id: characterA.id,
+      name: characterA.fullName,
+      role: characterA.role.title,
+      department: characterA.department.name,
+      status: type.statusB,
+      trustLevel: trustB,
+      notes: generateNote(type.statusB, trustB),
+      fromEvent: true
+    });
+    
+    // Store event reference for memory generation
+    const eventMemory = EVENT_MEMORIES[type.id];
+    if (eventMemory) {
+      const generateBoth = eventMemory.generateForBoth && shouldGenerateMatchingMemory();
+      
+      // Always give A a memory
+      characterA.relationshipEvents.push({
+        eventType: type.id,
+        otherCharacter: characterB,
+        memoryTemplate: eventMemory.memoryA,
+        isInitiator: true
+      });
+      
+      // Give B a memory if it's mutual and we're generating both
+      if (generateBoth && eventMemory.memoryB) {
+        characterB.relationshipEvents.push({
+          eventType: type.id,
+          otherCharacter: characterA,
+          memoryTemplate: eventMemory.memoryB,
+          isInitiator: false
+        });
+      }
+    }
+  }
+}
+
+/**
+ * Fill in remaining relationships (non-event based)
+ */
+function fillRemainingRelationships(character, allCharacters) {
+  const existingRelIds = new Set(character.relationships.map(r => r.id));
+  const otherCharacters = allCharacters.filter(c => c.id !== character.id && !existingRelIds.has(c.id));
+  
+  // Same department - always have relationships
+  const sameDept = otherCharacters.filter(c => c.department.id === character.department.id);
+  for (const other of sameDept) {
+    const status = determineInitialStatus(
+      { seniority: character.role.seniority, departmentId: character.department.id },
+      { seniority: other.role.seniority, departmentId: other.department.id }
+    );
+    const trustLevel = determineInitialTrust(status);
+    
+    character.relationships.push({
+      id: other.id,
+      name: other.fullName,
+      role: other.role.title,
+      department: other.department.name,
+      status,
+      trustLevel,
+      notes: generateNote(status, trustLevel)
+    });
+  }
+  
+  // Same floor, different department - chance for relationship
+  const sameFloor = otherCharacters.filter(c => 
+    c.role.floor === character.role.floor && 
+    c.department.id !== character.department.id
+  );
+  for (const other of sameFloor) {
+    if (Math.random() < 0.4) {
+      const status = Math.random() < 0.3 ? 'acquaintance' : 'stranger';
+      const trustLevel = determineInitialTrust(status);
+      
+      character.relationships.push({
+        id: other.id,
+        name: other.fullName,
+        role: other.role.title,
+        department: other.department.name,
+        status,
+        trustLevel,
+        notes: generateNote(status, trustLevel)
+      });
+    }
+  }
+  
+  // Different floor - small chance for random connection
+  const differentFloor = otherCharacters.filter(c => 
+    c.role.floor !== character.role.floor
+  );
+  for (const other of differentFloor) {
+    if (Math.random() < 0.1) {
+      const status = 'acquaintance';
+      const trustLevel = determineInitialTrust(status);
+      
+      character.relationships.push({
+        id: other.id,
+        name: other.fullName,
+        role: other.role.title,
+        department: other.department.name,
+        status,
+        trustLevel,
+        notes: generateNote(status, trustLevel)
+      });
+    }
+  }
 }
 
 /**
@@ -175,90 +447,6 @@ function getStressBaseline(disposition) {
     suspicious: 45 + Math.floor(Math.random() * 20)
   };
   return baselines[disposition.id] || 30;
-}
-
-/**
- * Generate relationships for a character
- */
-function generateRelationships(character, allCharacters) {
-  const relationships = [];
-  const otherCharacters = allCharacters.filter(c => c.id !== character.id);
-  
-  // Same department - always have relationships
-  const sameDept = otherCharacters.filter(c => c.department.id === character.department.id);
-  for (const other of sameDept) {
-    const status = determineInitialStatus(
-      { seniority: character.role.seniority, departmentId: character.department.id },
-      { seniority: other.role.seniority, departmentId: other.department.id }
-    );
-    const trustLevel = determineInitialTrust(status);
-    
-    relationships.push({
-      id: other.id,
-      name: other.fullName,
-      role: other.role.title,
-      department: other.department.name,
-      status,
-      trustLevel,
-      notes: generateNote(status, trustLevel)
-    });
-  }
-  
-  // Same floor, different department - chance for relationship
-  const sameFloor = otherCharacters.filter(c => 
-    c.role.floor === character.role.floor && 
-    c.department.id !== character.department.id
-  );
-  for (const other of sameFloor) {
-    if (Math.random() < 0.4) {
-      const status = Math.random() < 0.3 ? 'acquaintance' : 'stranger';
-      const trustLevel = determineInitialTrust(status);
-      
-      relationships.push({
-        id: other.id,
-        name: other.fullName,
-        role: other.role.title,
-        department: other.department.name,
-        status,
-        trustLevel,
-        notes: generateNote(status, trustLevel)
-      });
-    }
-  }
-  
-  // Different floor - small chance for random connection
-  const differentFloor = otherCharacters.filter(c => 
-    c.role.floor !== character.role.floor
-  );
-  for (const other of differentFloor) {
-    if (Math.random() < 0.1) {
-      const status = 'acquaintance';
-      const trustLevel = determineInitialTrust(status);
-      
-      relationships.push({
-        id: other.id,
-        name: other.fullName,
-        role: other.role.title,
-        department: other.department.name,
-        status,
-        trustLevel,
-        notes: generateNote(status, trustLevel)
-      });
-    }
-  }
-  
-  // Small chance for special relationships (friend, rival, love interest)
-  const closeContacts = relationships.filter(r => r.trustLevel === 'HIGH' || r.trustLevel === 'MODERATE');
-  if (closeContacts.length > 0 && Math.random() < 0.3) {
-    const target = closeContacts[Math.floor(Math.random() * closeContacts.length)];
-    const specialTypes = ['friend', 'close_friend', 'rival', 'love_interest'];
-    const specialType = specialTypes[Math.floor(Math.random() * specialTypes.length)];
-    
-    target.status = specialType;
-    target.notes = generateNote(specialType, target.trustLevel);
-  }
-  
-  return relationships;
 }
 
 /**
@@ -456,7 +644,7 @@ ${paragraph}${closing}`;
  * Generate memory directory with subdirectories
  */
 function generateMemoryFiles(character, context) {
-  const { disposition, traits, phantoms } = character;
+  const { disposition, traits, phantoms, relationshipEvents = [] } = character;
   
   const memories = {
     recent: { type: 'directory', children: {} },
@@ -508,6 +696,22 @@ function generateMemoryFiles(character, context) {
     memories.core.children[fileName] = {
       type: 'file',
       content: generateMemoryContent(template, { ...context, phantom: phantomName })
+    };
+  });
+  
+  // RELATIONSHIP EVENT MEMORIES
+  // These are coordinated memories from the event system (friendships, romances, rivalries)
+  relationshipEvents.forEach((event, i) => {
+    const { memoryTemplate, otherCharacter } = event;
+    if (!memoryTemplate) return;
+    
+    // Replace {other} with actual name in template
+    const content = memoryTemplate.template.replace(/\{other\}/g, otherCharacter.fullName);
+    const fileName = `${memoryTemplate.title}_${i + 1}.mem`;
+    
+    memories.core.children[fileName] = {
+      type: 'file',
+      content
     };
   });
   
@@ -821,6 +1025,5 @@ INTEGRITY: VERIFIED`
  * Export additional generators for external use
  */
 export {
-  generateRelationships,
   generateFileSystem
 };

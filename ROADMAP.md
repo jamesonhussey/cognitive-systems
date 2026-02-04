@@ -21,8 +21,11 @@
 - [x] Implement Phantom Characters (for backstory references)
 - [x] Remove contradictory memory types (colleague gone → uses phantom now)
 - [x] Disposition affects mood/stress baselines
-- [ ] Restructure generation order (memories → relationships) - Deferred
-- [ ] Ensure emotional weight matches relationship depth - Partial
+- [x] Relationship Events system (paired relationships with reciprocity)
+- [x] Configurable reciprocity rates per relationship type
+- [x] Coordinated trust levels for mutual relationships
+- [x] Paired memory generation for significant relationships
+- [x] One-sided relationships (unrequited love, one-way friendships, grudges)
 
 ## Phase 2: Simulation Core
 - [ ] Create simulation tick system (real-time, configurable speed)
