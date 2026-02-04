@@ -1,0 +1,13 @@
+{
+  "id": "it_setup",
+  "from": {
+    "name": "IT Department",
+    "email": "it-noreply@verity-systems.com"
+  },
+  "subject": "Workstation Configuration Complete",
+  "body": "AUTOMATED MESSAGE - DO NOT REPLY\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n  VERITY SYSTEMS - IT DEPARTMENT\n  Workstation Provisioning Notice\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nEmployee: {fullName}\nUsername: {username}\nClearance: Level {clearanceLevel}\nDivision: Cognitive Wellness\n\nYour workstation has been configured with the following:\n\n[INSTALLED]\n  ✓ Terminal v4.2.1\n  ✓ Email Client\n  ✓ Notes Application\n  ✓ Case File Viewer\n  ✓ Company Store Access\n\n[DEFAULT COMMANDS]\n  ✓ help, cd, dir, type, cls, tree\n\n[PENDING ACTIVATION]\n  ○ Advanced search utilities\n  ○ File recovery tools\n  ○ Modification suite\n\nAdditional tools may be purchased through the Company Store using work credits.\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nIMPORTANT SECURITY REMINDERS:\n\n• Do not share your password\n• Log out when leaving your workstation\n• Report suspicious activity to IT immediately\n• Patient data is CONFIDENTIAL - violations will result in immediate termination\n\nFor technical support, submit a ticket via the IT portal.\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nThis is an automated message. Ticket #IT-{username}-001",
+  "attachments": [],
+  "trigger": {
+    "type": "onFirstLogin"
+  }
+}

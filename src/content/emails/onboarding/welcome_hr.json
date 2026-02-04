@@ -1,0 +1,13 @@
+{
+  "id": "welcome_hr",
+  "from": {
+    "name": "Holly Banks",
+    "email": "holly.b@verity-systems.com"
+  },
+  "subject": "Welcome to Verity Systems! 🎉",
+  "body": "Hi {firstName}!\n\nWelcome to the Verity Systems family! We're SO excited to have you join our Cognitive Wellness Division.\n\nI'm Holly, your HR representative, and I'm here to help make your onboarding as smooth as possible. If you ever have any questions, concerns, or just want to chat, my door is always open! (Metaphorically speaking—I'm usually at my desk.)\n\nA few things to get you started:\n\n1. YOUR WORKSTATION\n   Your terminal has been pre-configured with the basic tools you'll need. Take some time to explore! Type 'help' to see available commands.\n\n2. STARTER BONUS\n   As a welcome gift, we've added ¢250 to your account! 🎁\n   You can use these credits in the Company Store to purchase productivity upgrades for your workstation.\n\n3. YOUR FIRST ASSIGNMENT\n   Dr. Reeves will be sending over your first case file shortly. Nothing too complex—just a chance to get familiar with our systems.\n\n4. WELLNESS CHECK-INS\n   We care about your mental health! You'll receive periodic wellness assessments. These are completely routine and help us ensure you're thriving in your role.\n\nRemember: What we do here MATTERS. Every adjustment we make improves someone's quality of life. You should feel proud to be part of this team.\n\nLooking forward to seeing great things from you!\n\nWarmly,\nHolly Banks\nHR Representative\nCognitive Wellness Division\n\n---\nVerity Systems Corporation\n\"Clarity Through Innovation\"\n\nThis message is confidential. If you received this in error, please delete immediately and notify IT.",
+  "attachments": [],
+  "trigger": {
+    "type": "onFirstLogin"
+  }
+}

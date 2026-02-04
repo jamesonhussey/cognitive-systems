@@ -1,0 +1,19 @@
+{
+  "id": "first_assignment",
+  "from": {
+    "name": "Dr. Michael Reeves",
+    "email": "m.reeves@verity-systems.com"
+  },
+  "subject": "Your First Case - Patient 1001",
+  "body": "{firstName},\n\nHolly mentioned you'd be starting today. Welcome aboard.\n\nI've assigned your first case to get you oriented with our systems. Patient 1001 is one of our internal employees—routine wellness processing. Nothing complicated.\n\nThe case file should be available in your Case Files application. Your task is simple:\n\n1. Review the patient's cognitive structure\n2. Familiarize yourself with navigation (cd, dir, type, tree)\n3. Note anything that seems unusual\n4. Report back when complete\n\nTake your time. There's no rush on this one—it's primarily for your training. The patient isn't scheduled for active processing yet.\n\nA word of advice: Focus on the technical aspects. File structures, command efficiency, documentation. Don't get discouraged. None of it is difficult, and you'll get the hang of it quickly.\n\nTalk soon.\n\n- Reeves\n\n---\nDr. Michael Reeves\nDepartment Head\nCognitive Wellness Division\nVerity Systems Corporation",
+  "attachments": [
+    {
+      "name": "CASE_1001.assignment",
+      "type": "assignment",
+      "patientId": "patient_1001"
+    }
+  ],
+  "trigger": {
+    "type": "onFirstLogin"
+  }
+}

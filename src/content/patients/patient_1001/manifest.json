@@ -1,0 +1,9 @@
+{
+  "id": "PATIENT_1001",
+  "name": "Sarah Chen",
+  "employeeId": "VS-2847",
+  "department": "Research & Development",
+  "status": "Active",
+  "clearanceRequired": 1,
+  "notes": "Verity Systems employee - R&D Senior Researcher. Flagged for routine wellness processing."
+}

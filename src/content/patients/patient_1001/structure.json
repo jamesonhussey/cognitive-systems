@@ -1,0 +1,77 @@
+{
+  "identity": {
+    "type": "directory",
+    "children": {
+      "name.dat": {
+        "type": "file",
+        "contentFile": "identity/name.dat"
+      },
+      "self_image.mem": {
+        "type": "file",
+        "contentFile": "identity/self_image.mem"
+      }
+    }
+  },
+  "memories": {
+    "type": "directory",
+    "children": {
+      "recent": {
+        "type": "directory",
+        "children": {
+          "meeting_2024_03_12.mem": {
+            "type": "file",
+            "contentFile": "memories/recent/meeting_2024_03_12.mem"
+          },
+          "lunch_2024_03_10.mem": {
+            "type": "file",
+            "contentFile": "memories/recent/lunch_2024_03_10.mem"
+          }
+        }
+      },
+      "traumatic": {
+        "type": "directory",
+        "metadata": { "clearanceRequired": 2 },
+        "children": {
+          "incident_847.mem": {
+            "type": "file",
+            "metadata": { "clearanceRequired": 2 },
+            "contentFile": "memories/traumatic/incident_847.mem"
+          }
+        }
+      }
+    }
+  },
+  "relationships": {
+    "type": "directory",
+    "children": {
+      "professional.idx": {
+        "type": "file",
+        "contentFile": "relationships/professional.idx"
+      }
+    }
+  },
+  "behavioral": {
+    "type": "directory",
+    "children": {
+      "habits.idx": {
+        "type": "file",
+        "contentFile": "behavioral/habits.idx"
+      },
+      "coping.sys": {
+        "type": "file",
+        "contentFile": "behavioral/coping.sys"
+      }
+    }
+  },
+  "system": {
+    "type": "directory",
+    "metadata": { "clearanceRequired": 3, "hidden": true },
+    "children": {
+      "modification_history.log": {
+        "type": "file",
+        "metadata": { "clearanceRequired": 3 },
+        "contentFile": "system/modification_history.log"
+      }
+    }
+  }
+}
