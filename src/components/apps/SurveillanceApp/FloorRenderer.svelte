@@ -1,12 +1,33 @@
 <script>
-  import { createEventDispatcher } from 'svelte';
-  import { worldMap } from '../../../engine/simulation/index.js';
+  import { createEventDispatcher, onMount, afterUpdate } from 'svelte';
+  import { LOCATIONS } from '../../../engine/simulation/world/WorldMap.js';
   
   export let floor;
   export let characters = [];
   export let selectedCharacterId = null;
   
   const dispatch = createEventDispatcher();
+  
+  let gridContainer;
+  let previousFloorId = null;
+  
+  // Scroll to bottom when neighborhood is first displayed
+  $: if (floor?.id !== previousFloorId) {
+    previousFloorId = floor?.id;
+    // Use setTimeout to wait for DOM update
+    if (gridContainer && floor?.id === LOCATIONS.NEIGHBORHOOD) {
+      setTimeout(() => {
+        gridContainer.scrollTop = gridContainer.scrollHeight;
+      }, 0);
+    }
+  }
+  
+  // Also scroll on mount if starting on neighborhood
+  onMount(() => {
+    if (gridContainer && floor?.id === LOCATIONS.NEIGHBORHOOD) {
+      gridContainer.scrollTop = gridContainer.scrollHeight;
+    }
+  });
   
   // Tile colors for different types
   const TILE_COLORS = {
@@ -50,11 +71,8 @@
     elevator: '#002255'
   };
   
-  // Get characters on this floor
-  $: floorCharacters = characters.filter(c => {
-    const loc = worldMap.getCharacterLocation(c.id);
-    return loc === floor?.id;
-  });
+  // Get characters on this floor (using sim.floor which is kept in sync)
+  $: floorCharacters = characters.filter(c => c.sim?.floor === floor?.id);
   
   // Create character position lookup
   $: characterPositions = new Map(
@@ -83,7 +101,11 @@
       case 'working': return '#00ff00';
       case 'break': return '#00ffff';
       case 'commuting': return '#ff8800';
+      case 'walking': return '#ffaa00';
       case 'leisure': return '#88ff88';
+      case 'eating': return '#88ffff';
+      case 'waking_up': return '#888888';
+      case 'morning_routine': return '#aaaaaa';
       default: return '#00ff00';
     }
   }
@@ -95,7 +117,7 @@
     <span class="floor-info">{floorCharacters.length} characters</span>
   </div>
   
-  <div class="grid-container">
+  <div class="grid-container" bind:this={gridContainer}>
     <div class="grid-wrapper">
       <div 
         class="grid"

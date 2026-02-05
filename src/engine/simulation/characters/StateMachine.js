@@ -47,7 +47,9 @@ export const STATES = {
     category: 'movement',
     location: 'any',
     allowsMovement: true,
-    recoversEnergy: false
+    recoversEnergy: false,
+    drainsEnergy: true,
+    energyDrainRate: 0.2 // Light energy drain while walking
   },
   WALKING: {
     id: 'walking',
@@ -55,7 +57,9 @@ export const STATES = {
     category: 'movement',
     location: 'any',
     allowsMovement: true,
-    recoversEnergy: false
+    recoversEnergy: false,
+    drainsEnergy: true,
+    energyDrainRate: 0.1 // Very light energy drain
   },
   
   // Work states

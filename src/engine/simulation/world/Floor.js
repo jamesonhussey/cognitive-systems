@@ -208,11 +208,11 @@ export class Floor {
    * Place a character on this floor
    */
   placeCharacter(characterId, x, y) {
-    // Clear old position
+    // Clear old position if character was already on this floor
     if (this.characterPositions.has(characterId)) {
       const oldPos = this.characterPositions.get(characterId);
       const oldTile = this.getTile(oldPos.x, oldPos.y);
-      if (oldTile) oldTile.clearOccupied();
+      if (oldTile) oldTile.removeOccupant(characterId);
     }
     
     // Set new position
@@ -229,7 +229,7 @@ export class Floor {
     const pos = this.characterPositions.get(characterId);
     if (pos) {
       const tile = this.getTile(pos.x, pos.y);
-      if (tile) tile.clearOccupied();
+      if (tile) tile.removeOccupant(characterId);
       this.characterPositions.delete(characterId);
     }
   }

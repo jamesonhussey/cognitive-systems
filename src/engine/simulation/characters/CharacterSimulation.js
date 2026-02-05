@@ -2,19 +2,84 @@
  * CHARACTER SIMULATION
  * 
  * The main simulation manager that updates all characters each tick.
- * Responsibilities:
- * - Update character states based on schedules
- * - Process movement
- * - Handle needs (energy, social, stress)
- * - Trigger state transitions
+ * 
+ * KEY CONCEPT: Intention vs State
+ * - Intention: What the schedule says they SHOULD be doing (e.g., "working")
+ * - State: What they're ACTUALLY doing (e.g., "commuting" if walking to work)
+ * 
+ * The state reflects reality, not the schedule. A character who is scheduled
+ * to be "working" at 9am but is still at home will show as "commuting" until
+ * they actually arrive at their desk.
  */
 
 import { get } from 'svelte/store';
 import { worldState, worldCharacters } from '../WorldState.js';
 import { worldMap, LOCATIONS } from '../world/WorldMap.js';
-import { getScheduleForCharacter, getScheduledActivity } from './Schedule.js';
-import { getState, getEnergyDelta, stateAllowsMovement, getStateLocation } from './StateMachine.js';
+import { assignSchedulesToAll, getScheduledActivity } from './Schedule.js';
+import { getState, getEnergyDelta } from './StateMachine.js';
 import { findPath, getNextStep } from './Pathfinding.js';
+
+// ============================================
+// CONFIGURATION - Easy to adjust!
+// ============================================
+
+/**
+ * Number of tiles a character moves per visual tick
+ * With 4 visual ticks per game minute, this means:
+ *   1 = 4 tiles/game minute (~10 min to cross office)
+ *   2 = 8 tiles/game minute (~5 min to cross office)
+ * 
+ * Keep at 1 for smooth movement (1 tile per 250ms at 1x speed)
+ */
+const TILES_PER_TICK = 1;
+
+// ============================================
+// HELPER: Check if character is at correct location for a state
+// ============================================
+
+/**
+ * States that require being at the office
+ */
+const OFFICE_STATES = ['working', 'break'];
+
+/**
+ * States that require being at home
+ */
+const HOME_STATES = ['sleeping', 'waking_up', 'morning_routine', 'leisure', 'eating'];
+
+/**
+ * Check if character is at the right location for their intended state
+ */
+function isAtCorrectLocation(character, intention) {
+  const currentLocation = worldMap.getCharacterLocation(character.id);
+  
+  if (OFFICE_STATES.includes(intention)) {
+    // Need to be at office
+    return currentLocation !== LOCATIONS.NEIGHBORHOOD;
+  }
+  
+  if (HOME_STATES.includes(intention)) {
+    // Need to be at home (neighborhood)
+    return currentLocation === LOCATIONS.NEIGHBORHOOD;
+  }
+  
+  // Commuting and other states can happen anywhere
+  return true;
+}
+
+/**
+ * Check if character has arrived at their destination within the location
+ */
+function hasArrivedAtDestination(character) {
+  const sim = character.sim;
+  
+  // Not moving means we're where we need to be
+  if (!sim.isMoving && sim.targetX === null && sim.targetY === null) {
+    return true;
+  }
+  
+  return false;
+}
 
 // ============================================
 // CHARACTER SIMULATION MANAGER
@@ -31,9 +96,12 @@ class CharacterSimulationManager {
   initialize() {
     const characters = get(worldCharacters);
     
-    // Assign schedules to all characters
+    // Assign schedules to all characters (batch assignment ensures security coverage)
+    assignSchedulesToAll(characters);
+    
+    // Initialize intentions
     for (const character of characters) {
-      character.sim.schedule = getScheduleForCharacter(character);
+      character.sim.intention = character.sim.state || 'sleeping';
     }
     
     this.initialized = true;
@@ -43,15 +111,18 @@ class CharacterSimulationManager {
   /**
    * Process one tick for all characters
    * Called by the main simulation loop
+   * 
+   * @param {object} timestamp - Current game time
+   * @param {boolean} isTimeTick - True if game time just advanced (for schedule updates)
    */
-  tick(timestamp) {
+  tick(timestamp, isTimeTick = true) {
     if (!this.initialized) return;
     
     const characters = get(worldCharacters);
     const { hour, minute } = timestamp;
     
     for (const character of characters) {
-      this.updateCharacter(character, hour, minute);
+      this.updateCharacter(character, hour, minute, isTimeTick);
     }
     
     // Trigger reactivity
@@ -61,75 +132,212 @@ class CharacterSimulationManager {
   
   /**
    * Update a single character
+   * 
+   * @param {object} character - The character to update
+   * @param {number} hour - Current game hour
+   * @param {number} minute - Current game minute
+   * @param {boolean} isTimeTick - True if game time just advanced (for schedule updates)
    */
-  updateCharacter(character, hour, minute) {
+  updateCharacter(character, hour, minute, isTimeTick = true) {
     const sim = character.sim;
     
-    // 1. Check schedule for what we should be doing
-    const scheduled = getScheduledActivity(sim.schedule, hour, minute);
-    
-    // 2. Handle state transitions
-    if (sim.state !== scheduled.state) {
-      this.transitionToState(character, scheduled.state, scheduled.action);
+    // Only update schedule/intentions when game time advances
+    if (isTimeTick) {
+      // 1. Get scheduled intention (what they SHOULD be doing)
+      const scheduled = getScheduledActivity(sim.schedule, hour, minute);
+      const newIntention = scheduled.state;
+      
+      // 2. Update intention if schedule changed
+      if (sim.intention !== newIntention) {
+        sim.intention = newIntention;
+        // New intention means we need to move to the right place
+        this.startMovingToIntention(character, newIntention);
+      }
+      
+      // 3. Determine actual state based on location and movement
+      this.updateActualState(character);
+      
+      // 4. Update needs based on actual state
+      this.updateNeeds(character);
     }
     
-    // 3. Process current state
-    this.processState(character);
-    
-    // 4. Process movement if needed
+    // Movement happens every visual tick for smooth animation
     if (sim.isMoving) {
       this.processMovement(character);
+      
+      // Update state after movement (in case we arrived somewhere)
+      if (!isTimeTick) {
+        this.updateActualState(character);
+      }
     }
-    
-    // 5. Update needs
-    this.updateNeeds(character);
   }
   
   /**
-   * Transition character to a new state
+   * Start moving character toward where they need to be for their intention
    */
-  transitionToState(character, newState, action) {
+  startMovingToIntention(character, intention) {
     const sim = character.sim;
-    const oldState = sim.state;
+    const currentLocation = worldMap.getCharacterLocation(character.id);
     
-    // Store previous state
-    sim.previousState = oldState;
-    sim.state = newState;
-    sim.currentAction = action || getState(newState).name;
-    
-    // Handle state-specific entry logic
-    switch (newState) {
-      case 'commuting':
-        this.startCommute(character);
-        break;
-        
-      case 'working':
-        this.goToDesk(character);
-        break;
-        
-      case 'break':
+    // Determine destination based on intention
+    if (OFFICE_STATES.includes(intention)) {
+      // Need to go to office
+      if (currentLocation === LOCATIONS.NEIGHBORHOOD) {
+        // At home, need to go to work
+        const desk = worldMap.getCharacterDesk(character.id);
+        if (desk) {
+          sim.targetFloor = desk.locationId;
+          sim.targetX = desk.x;
+          sim.targetY = desk.y;
+          sim.isMoving = true;
+        }
+      } else if (intention === 'working') {
+        // Already at office, go to desk
+        const desk = worldMap.getCharacterDesk(character.id);
+        if (desk) {
+          if (currentLocation !== desk.locationId) {
+            sim.targetFloor = desk.locationId;
+          }
+          sim.targetX = desk.x;
+          sim.targetY = desk.y;
+          sim.isMoving = true;
+        }
+      } else if (intention === 'break') {
+        // Go to break room
         this.goToBreakRoom(character);
-        break;
-        
-      case 'sleeping':
-      case 'waking_up':
-      case 'morning_routine':
-      case 'leisure':
-      case 'eating':
-        this.goHome(character);
-        break;
+      }
+    } else if (HOME_STATES.includes(intention)) {
+      // Need to go home
+      if (currentLocation !== LOCATIONS.NEIGHBORHOOD) {
+        // At office, need to go home
+        const home = worldMap.getCharacterHome(character.id);
+        if (home) {
+          sim.targetFloor = LOCATIONS.NEIGHBORHOOD;
+          sim.targetX = home.bedPosition.x;
+          sim.targetY = home.bedPosition.y;
+          sim.isMoving = true;
+        }
+      } else {
+        // Already at home
+        const home = worldMap.getCharacterHome(character.id);
+        if (home) {
+          // If not at bed, go to bed (for sleeping)
+          if (intention === 'sleeping' || intention === 'waking_up') {
+            if (sim.x !== home.bedPosition.x || sim.y !== home.bedPosition.y) {
+              sim.targetX = home.bedPosition.x;
+              sim.targetY = home.bedPosition.y;
+              sim.isMoving = true;
+            }
+          }
+          // For other home states, they can be anywhere in the house
+        }
+      }
+    }
+    // 'commuting' intention is handled automatically by movement
+  }
+  
+  /**
+   * Update the character's actual state based on their location and movement
+   */
+  updateActualState(character) {
+    const sim = character.sim;
+    const intention = sim.intention;
+    const currentLocation = worldMap.getCharacterLocation(character.id);
+    
+    // If moving between locations, state is commuting
+    if (sim.targetFloor && sim.targetFloor !== currentLocation) {
+      this.setCharacterState(character, 'commuting', this.getCommutingAction(character, intention));
+      return;
+    }
+    
+    // If moving within a location, state depends on intention
+    if (sim.isMoving) {
+      if (OFFICE_STATES.includes(intention)) {
+        // Walking to desk or break room
+        if (intention === 'working') {
+          this.setCharacterState(character, 'walking', 'Walking to desk');
+        } else if (intention === 'break') {
+          this.setCharacterState(character, 'walking', 'Walking to break room');
+        }
+      } else if (HOME_STATES.includes(intention)) {
+        // Walking within home
+        if (intention === 'sleeping') {
+          this.setCharacterState(character, 'walking', 'Going to bed');
+        } else {
+          this.setCharacterState(character, 'walking', 'Moving around house');
+        }
+      } else {
+        this.setCharacterState(character, 'walking', 'Walking');
+      }
+      return;
+    }
+    
+    // Not moving - state matches intention if at correct location
+    if (isAtCorrectLocation(character, intention)) {
+      // At correct location and not moving - actually doing the activity
+      const actionText = this.getActivityAction(character, intention);
+      this.setCharacterState(character, intention, actionText);
+    } else {
+      // Wrong location but not moving - need to start moving
+      this.startMovingToIntention(character, intention);
     }
   }
   
   /**
-   * Process current state tick
+   * Set character state and action (with change tracking)
    */
-  processState(character) {
+  setCharacterState(character, newState, action) {
     const sim = character.sim;
-    const state = getState(sim.state);
     
-    // Nothing specific to do for most states
-    // (Movement and needs are handled separately)
+    if (sim.state !== newState) {
+      sim.previousState = sim.state;
+      sim.state = newState;
+    }
+    
+    sim.currentAction = action;
+  }
+  
+  /**
+   * Get action text for commuting
+   */
+  getCommutingAction(character, intention) {
+    const currentLocation = worldMap.getCharacterLocation(character.id);
+    
+    if (OFFICE_STATES.includes(intention)) {
+      return 'Walking to work';
+    } else if (HOME_STATES.includes(intention)) {
+      if (currentLocation === LOCATIONS.NEIGHBORHOOD) {
+        return 'Walking home';
+      }
+      return 'Heading home';
+    }
+    return 'Commuting';
+  }
+  
+  /**
+   * Get action text for actually doing an activity
+   */
+  getActivityAction(character, state) {
+    const stateInfo = getState(state);
+    
+    switch (state) {
+      case 'sleeping':
+        return 'Sleeping';
+      case 'waking_up':
+        return 'Waking up';
+      case 'morning_routine':
+        return 'Getting ready';
+      case 'working':
+        return 'Working at desk';
+      case 'break':
+        return 'On break';
+      case 'leisure':
+        return 'Relaxing';
+      case 'eating':
+        return 'Eating';
+      default:
+        return stateInfo.name;
+    }
   }
   
   /**
@@ -156,48 +364,6 @@ class CharacterSimulationManager {
   }
   
   /**
-   * Start commuting to/from work
-   */
-  startCommute(character) {
-    const sim = character.sim;
-    const currentLocation = worldMap.getCharacterLocation(character.id);
-    
-    // Determine destination
-    if (currentLocation === LOCATIONS.NEIGHBORHOOD) {
-      // Going to work
-      sim.targetFloor = this.getWorkFloor(character);
-      sim.currentAction = 'Walking to work';
-    } else {
-      // Going home
-      sim.targetFloor = LOCATIONS.NEIGHBORHOOD;
-      sim.currentAction = 'Walking home';
-    }
-    
-    sim.isMoving = true;
-  }
-  
-  /**
-   * Go to desk
-   */
-  goToDesk(character) {
-    const sim = character.sim;
-    const desk = worldMap.getCharacterDesk(character.id);
-    
-    if (desk) {
-      const currentLocation = worldMap.getCharacterLocation(character.id);
-      
-      if (currentLocation !== desk.locationId) {
-        // Need to change floors first
-        sim.targetFloor = desk.locationId;
-        sim.isMoving = true;
-      }
-      
-      sim.targetX = desk.x;
-      sim.targetY = desk.y;
-    }
-  }
-  
-  /**
    * Go to break room
    */
   goToBreakRoom(character) {
@@ -214,22 +380,6 @@ class CharacterSimulationManager {
         sim.targetY = center.y;
         sim.isMoving = true;
       }
-    }
-  }
-  
-  /**
-   * Go home
-   */
-  goHome(character) {
-    const sim = character.sim;
-    const home = worldMap.getCharacterHome(character.id);
-    const currentLocation = worldMap.getCharacterLocation(character.id);
-    
-    if (home && currentLocation !== LOCATIONS.NEIGHBORHOOD) {
-      sim.targetFloor = LOCATIONS.NEIGHBORHOOD;
-      sim.targetX = home.bedPosition.x;
-      sim.targetY = home.bedPosition.y;
-      sim.isMoving = true;
     }
   }
   
@@ -269,10 +419,9 @@ class CharacterSimulationManager {
             worldMap.moveCharacterToLocation(character.id, sim.targetFloor, spawnX, spawnY);
             sim.x = spawnX;
             sim.y = spawnY;
+            sim.floor = sim.targetFloor;
             sim.targetFloor = null;
             sim.path = []; // Will recalculate path to home
-            
-            // Keep targetX/Y pointing to home so we'll walk there
           } else {
             // Path to elevator
             if (!sim.path || sim.path.length === 0) {
@@ -288,6 +437,7 @@ class CharacterSimulationManager {
           worldMap.moveCharacterToLocation(character.id, sim.targetFloor, spawnX, spawnY);
           sim.x = spawnX;
           sim.y = spawnY;
+          sim.floor = sim.targetFloor;
           sim.targetFloor = null;
           sim.path = [];
         }
@@ -307,6 +457,7 @@ class CharacterSimulationManager {
             worldMap.moveCharacterToLocation(character.id, sim.targetFloor, elevator.x, elevator.y);
             sim.x = elevator.x;
             sim.y = elevator.y;
+            sim.floor = sim.targetFloor;
             sim.targetFloor = null;
             sim.path = []; // Will recalculate path to desk
           }
@@ -336,6 +487,7 @@ class CharacterSimulationManager {
           worldMap.moveCharacterToLocation(character.id, sim.targetFloor, targetX, targetY);
           sim.x = targetX;
           sim.y = targetY;
+          sim.floor = sim.targetFloor;
           sim.targetFloor = null;
           sim.path = [];
         } else {
@@ -349,6 +501,7 @@ class CharacterSimulationManager {
         worldMap.moveCharacterToLocation(character.id, sim.targetFloor, sim.targetX || 0, sim.targetY || 0);
         sim.x = sim.targetX || 0;
         sim.y = sim.targetY || 0;
+        sim.floor = sim.targetFloor;
         sim.targetFloor = null;
         sim.path = [];
       }
@@ -379,7 +532,7 @@ class CharacterSimulationManager {
         if (nextStep) {
           sim.path = [nextStep];
         } else {
-          // Can't reach destination
+          // Can't reach destination - clear and stop
           sim.isMoving = false;
           sim.targetX = null;
           sim.targetY = null;
@@ -388,19 +541,25 @@ class CharacterSimulationManager {
       }
     }
     
-    // Move along path
+    // Move along path - move multiple tiles per tick based on TILES_PER_TICK
     if (sim.path && sim.path.length > 0) {
-      const nextPos = sim.path[0];
+      let stepsTaken = 0;
       
-      // Check if position is still walkable
-      if (floor.isWalkable(nextPos.x, nextPos.y)) {
-        floor.placeCharacter(character.id, nextPos.x, nextPos.y);
-        sim.x = nextPos.x;
-        sim.y = nextPos.y;
-        sim.path.shift(); // Remove the step we just took
-      } else {
-        // Path blocked, recalculate
-        sim.path = findPath(floor, sim.x, sim.y, sim.targetX, sim.targetY);
+      while (stepsTaken < TILES_PER_TICK && sim.path.length > 0) {
+        const nextPos = sim.path[0];
+        
+        // Check if position is still walkable
+        if (floor.isWalkable(nextPos.x, nextPos.y)) {
+          floor.placeCharacter(character.id, nextPos.x, nextPos.y);
+          sim.x = nextPos.x;
+          sim.y = nextPos.y;
+          sim.path.shift(); // Remove the step we just took
+          stepsTaken++;
+        } else {
+          // Path blocked, recalculate and break to try next tick
+          sim.path = findPath(floor, sim.x, sim.y, sim.targetX, sim.targetY);
+          break;
+        }
       }
       
       // Check if we've arrived

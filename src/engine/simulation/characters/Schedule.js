@@ -124,20 +124,78 @@ const SCHEDULES = {
   management: SCHEDULE_MANAGEMENT
 };
 
+// Store for security shift assignments (ensures consistent assignment)
+const securityShiftAssignments = new Map();
+
+/**
+ * Assign schedules to all characters, ensuring proper distribution
+ * This should be called once with all characters to ensure security shifts are covered
+ */
+export function assignSchedulesToAll(characters) {
+  // Clear previous assignments
+  securityShiftAssignments.clear();
+  
+  // Find all security workers
+  const securityWorkers = characters.filter(c => c.department?.id === 'security');
+  
+  // Sort by ID for consistent ordering
+  securityWorkers.sort((a, b) => a.id.localeCompare(b.id));
+  
+  // Separate chief from officers
+  const chief = securityWorkers.find(c => c.role.title.toLowerCase().includes('chief'));
+  const officers = securityWorkers.filter(c => !c.role.title.toLowerCase().includes('chief'));
+  
+  // Assign chief to morning shift
+  if (chief) {
+    securityShiftAssignments.set(chief.id, SCHEDULE_SECURITY_MORNING);
+  }
+  
+  // Distribute officers across shifts, prioritizing evening and night first
+  // (since chief covers morning)
+  const shiftPriority = [
+    SCHEDULE_SECURITY_EVENING,
+    SCHEDULE_SECURITY_NIGHT,
+    SCHEDULE_SECURITY_MORNING  // Extra officers go to morning last
+  ];
+  
+  officers.forEach((officer, index) => {
+    const shift = shiftPriority[index % shiftPriority.length];
+    securityShiftAssignments.set(officer.id, shift);
+  });
+  
+  // Log the distribution
+  console.log('[Schedule] Security shift assignments:');
+  for (const [id, schedule] of securityShiftAssignments) {
+    const char = characters.find(c => c.id === id);
+    console.log(`  ${char?.fullName || id}: ${schedule.name}`);
+  }
+  
+  // Assign schedules to all characters
+  for (const character of characters) {
+    character.sim.schedule = getScheduleForCharacter(character);
+  }
+}
+
 /**
  * Get appropriate schedule for a character based on their role
  */
 export function getScheduleForCharacter(character) {
-  const deptId = character.department.id;
-  const roleTitle = character.role.title.toLowerCase();
+  const deptId = character.department?.id;
+  const roleTitle = character.role?.title?.toLowerCase() || '';
   
-  // Security gets rotating shifts
+  // Security uses pre-assigned shifts if available
   if (deptId === 'security') {
-    // Distribute across shifts based on character index
-    const shiftIndex = parseInt(character.id.slice(-2), 16) % 3;
-    if (shiftIndex === 0) return SCHEDULE_SECURITY_MORNING;
-    if (shiftIndex === 1) return SCHEDULE_SECURITY_EVENING;
-    return SCHEDULE_SECURITY_NIGHT;
+    const preAssigned = securityShiftAssignments.get(character.id);
+    if (preAssigned) {
+      return preAssigned;
+    }
+    
+    // Fallback: Chief gets morning, others get distributed
+    if (roleTitle.includes('chief')) {
+      return SCHEDULE_SECURITY_MORNING;
+    }
+    // Without batch assignment, fall back to evening (most likely needed)
+    return SCHEDULE_SECURITY_EVENING;
   }
   
   // Management gets management schedule

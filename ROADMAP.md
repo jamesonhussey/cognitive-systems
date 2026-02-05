@@ -49,7 +49,9 @@
 - [x] Character symbols with real-time position updates
 - [x] Speed controls (pause, 1x, 2x, 4x)
 - [x] Character list panel
-- [ ] Click-to-inspect character details (Character Inspector)
+- [x] Click-to-inspect character details (Character Inspector)
+- [x] .scan file type to open character brain in terminal
+- [ ] ASCII portraits for character inspector
 - [ ] Character status panel (mood, activity, thoughts)
 - [ ] Zoom and pan controls
 
@@ -108,4 +110,6 @@
 - No pausing (initially)
 - File system schema is data-driven (easy to add new file types later)
 - Priorities file directly influences character behavior in simulation
-- Dormitory/living quarters attached to office for sleep cycles
+- Dormitory/living quarters → Company Town (neighborhood with individual houses)
+- Movement speed: TILES_PER_TICK constant (default 4) for easy adjustment
+- .assignment files = active cases with edits | .scan files = surveillance read-only

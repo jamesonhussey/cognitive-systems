@@ -253,19 +253,49 @@ export class FileSystem {
 
   /**
    * Create directory structure from JSON definition
+   * Supports two formats:
+   * 1. Explicit: { type: 'directory', children: {...} } or { type: 'file', content: '...' }
+   * 2. Inferred: Objects without 'type' property containing nested objects = directory
+   * 
    * @param {object} structure 
    * @param {FileNode} parent 
    */
   buildFromStructure(structure, parent = this.root) {
     for (const [name, definition] of Object.entries(structure)) {
+      // Explicit directory
       if (definition.type === 'directory') {
         const dir = new FileNode(name, 'directory', null, definition.metadata || {});
         parent.addChild(dir);
         if (definition.children) {
           this.buildFromStructure(definition.children, dir);
         }
-      } else {
+      } 
+      // Explicit file
+      else if (definition.type === 'file') {
         const file = new FileNode(name, 'file', definition.content || '', definition.metadata || {});
+        parent.addChild(file);
+      }
+      // Inferred: object without 'type' that contains nested objects = directory
+      else if (typeof definition === 'object' && definition !== null) {
+        // Check if this looks like a directory (contains objects with 'type' or nested objects)
+        const hasNestedContent = Object.values(definition).some(
+          v => typeof v === 'object' && v !== null
+        );
+        
+        if (hasNestedContent) {
+          // Treat as directory
+          const dir = new FileNode(name, 'directory', null, {});
+          parent.addChild(dir);
+          this.buildFromStructure(definition, dir);
+        } else {
+          // Treat as file with stringified content
+          const file = new FileNode(name, 'file', JSON.stringify(definition), {});
+          parent.addChild(file);
+        }
+      }
+      // Primitive value = file with that content
+      else {
+        const file = new FileNode(name, 'file', String(definition), {});
         parent.addChild(file);
       }
     }

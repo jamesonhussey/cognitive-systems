@@ -15,6 +15,9 @@
   
   // Provide a way for child components to open assignments
   setContext('openAssignment', (patientId) => openTerminal(patientId));
+  
+  // Provide a way for child components to open character scans
+  setContext('openScan', (character) => openCharacterScan(character));
 
   // Window definitions
   const windowDefs = {
@@ -77,8 +80,9 @@
   let startMenuOpen = false;
   let nextZIndex = 1;
   
-  // Track terminal instances with their patient IDs
+  // Track terminal instances with their patient IDs or character data
   let terminalPatients = {}; // { windowId: patientId }
+  let terminalCharacters = {}; // { windowId: character } for .scan files
   let terminalCounter = 0;
 
   function openWindow(id, props = {}) {
@@ -132,9 +136,43 @@
     activeWindowId = terminalId;
   }
 
+  // Open a terminal with a character's brain file system (.scan)
+  function openCharacterScan(character) {
+    if (!character) return;
+    
+    // Create unique terminal window ID
+    const terminalId = `terminal_${terminalCounter++}`;
+    
+    // Store the character data for this terminal
+    terminalCharacters[terminalId] = character;
+    terminalCharacters = terminalCharacters;
+    
+    // Get title based on character name
+    const lastName = character.lastName || character.fullName?.split(' ').pop() || 'UNKNOWN';
+    const title = `CA Terminal - ${lastName.toUpperCase()}.scan`;
+    
+    // Create window definition for this terminal instance
+    openWindows[terminalId] = { 
+      isOpen: true, 
+      isMinimized: false, 
+      zIndex: nextZIndex++,
+      title: title,
+      isTerminal: true,
+      isScan: true  // Flag to indicate this is a scan, not an assignment
+    };
+    openWindows = openWindows;
+    activeWindowId = terminalId;
+  }
+
   // Handle assignment file clicks from email
   function handleOpenAssignment(patientId) {
     openTerminal(patientId);
+  }
+  
+  // Handle scan file clicks from surveillance app
+  function handleOpenScan(event) {
+    const { character } = event.detail;
+    openCharacterScan(character);
   }
 
   function closeWindow(id) {
@@ -199,13 +237,18 @@
     .map(([id, w]) => {
       // Check if this is a terminal instance
       if (w.isTerminal) {
+        // Check if it's a scan (character) or assignment (patient)
+        const props = w.isScan 
+          ? { character: terminalCharacters[id] }
+          : { patientId: terminalPatients[id] };
+        
         return {
           id,
           ...w,
           def: {
             ...windowDefs.terminal,
             title: w.title,
-            props: { patientId: terminalPatients[id] }
+            props
           }
         };
       }

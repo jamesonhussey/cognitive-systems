@@ -84,6 +84,7 @@ class SimulationManager {
           y: 0,
           floor: 'neighborhood',
           state: 'sleeping',
+          intention: 'sleeping',
           currentAction: 'Sleeping',
           needs: {
             energy: 100,
@@ -140,6 +141,12 @@ class SimulationManager {
     // Start auto-save
     this.startAutoSave();
     
+    // Expose to window for dev tools
+    if (typeof window !== 'undefined') {
+      window._simulationCharacters = () => get(worldCharacters);
+      window._simulationTime = () => simulation.getTimeManager().getTimestamp();
+    }
+    
     this.initialized = true;
     console.log('[SimulationManager] Simulation started');
   }
@@ -173,6 +180,7 @@ class SimulationManager {
           y: 0,
           floor: 'neighborhood',
           state: 'sleeping',
+          intention: 'sleeping',
           currentAction: 'Sleeping',
           needs: { energy: 100, social: 50, stress: 20 },
           path: [],
@@ -280,6 +288,7 @@ class SimulationManager {
           y: c.sim.y,
           floor: c.sim.floor,
           state: c.sim.state,
+          intention: c.sim.intention,
           previousState: c.sim.previousState,
           currentAction: c.sim.currentAction,
           needs: { ...c.sim.needs },

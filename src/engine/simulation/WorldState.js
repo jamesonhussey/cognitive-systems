@@ -81,7 +81,7 @@ class WorldState {
       // Current position
       x: 0,
       y: 0,
-      floor: 'home', // 'home', 'floor_1', 'floor_2', etc.
+      floor: 'neighborhood', // 'neighborhood', 'floor_1', 'floor_2', etc.
       
       // Movement
       targetX: null,
@@ -91,7 +91,8 @@ class WorldState {
       isMoving: false,
       
       // State machine
-      state: 'sleeping', // Current state
+      state: 'sleeping', // Current ACTUAL state (what they're doing)
+      intention: 'sleeping', // What schedule says they should be doing
       previousState: null,
       stateStartTime: 0, // When current state started (in game minutes)
       

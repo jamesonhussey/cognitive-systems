@@ -38,7 +38,7 @@ function createGameState() {
         // Game progress
         credits: 500, // Starting currency
         tokens: 0,    // Cosmetic currency
-        clearanceLevel: 1,
+        clearanceLevel: 10, // DEV: Set high for unrestricted access (revert to 1 for production)
         currentShift: 1,
         completedTasks: [],
         // Purchased commands (commands bought from store)

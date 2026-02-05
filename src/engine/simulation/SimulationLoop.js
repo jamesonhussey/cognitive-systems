@@ -26,9 +26,16 @@ export const SPEED_OPTIONS = [0, 1, 2, 4];
 
 /**
  * Base tick interval in milliseconds (at 1x speed)
- * 1000ms = 1 second = 1 game minute
+ * This controls visual update rate (movement smoothness)
  */
-export const BASE_TICK_MS = 1000;
+export const BASE_TICK_MS = 250; // 4 ticks per second for smooth movement
+
+/**
+ * How many visual ticks per game minute
+ * Higher = smoother movement, same game speed
+ * 4 ticks per second * 1 second per game minute = 4 ticks per minute
+ */
+export const TICKS_PER_GAME_MINUTE = 4;
 
 // ============================================
 // SIMULATION STATE
@@ -40,6 +47,9 @@ class SimulationLoop {
     this.timeManager = new TimeManager();
     this.isRunning = false;
     this.intervalId = null;
+    
+    // Sub-tick counter for time advancement
+    this.subTickCounter = 0;
     
     // Svelte stores for reactive UI
     this.speed = writable(1); // Current speed multiplier
@@ -54,7 +64,7 @@ class SimulationLoop {
       dayName: $time.dayName
     }));
     
-    // Callbacks for tick events
+    // Callbacks for tick events (movement, etc.)
     this.tickCallbacks = [];
     
     // Performance tracking
@@ -170,15 +180,25 @@ class SimulationLoop {
   
   /**
    * Execute one simulation tick
+   * Visual updates happen every tick, but game time only advances every TICKS_PER_GAME_MINUTE ticks
    */
   tick() {
-    // Advance game time
-    this.timeManager.tick();
+    // Increment sub-tick counter
+    this.subTickCounter++;
     
-    // Update time store
-    this.time.set(this.timeManager.getTimestamp());
+    // Check if this is a "time tick" (when game time should advance)
+    const isTimeTick = this.subTickCounter >= TICKS_PER_GAME_MINUTE;
     
-    // Update tick count
+    // Advance game time only every TICKS_PER_GAME_MINUTE ticks
+    if (isTimeTick) {
+      this.subTickCounter = 0;
+      this.timeManager.tick();
+      
+      // Update time store
+      this.time.set(this.timeManager.getTimestamp());
+    }
+    
+    // Update tick count (visual ticks)
     this.tickCount.update(n => n + 1);
     
     // Track performance
@@ -189,10 +209,11 @@ class SimulationLoop {
     this.lastTickTime = now;
     
     // Execute all registered tick callbacks
+    // Pass both timestamp AND whether this is a time tick (for schedule updates)
     const timestamp = this.timeManager.getTimestamp();
     for (const callback of this.tickCallbacks) {
       try {
-        callback(timestamp);
+        callback(timestamp, isTimeTick);
       } catch (error) {
         console.error('[Simulation] Tick callback error:', error);
       }

@@ -97,12 +97,14 @@ export const TILE_TYPES = {
     id: 'door',
     char: '▯',
     walkable: true,
+    allowMultiple: true, // Multiple characters can pass through
     description: 'Door'
   },
   DOOR_OPEN: {
     id: 'door_open',
     char: '░',
     walkable: true,
+    allowMultiple: true,
     description: 'Open door'
   },
   
@@ -111,18 +113,21 @@ export const TILE_TYPES = {
     id: 'floor',
     char: '.',
     walkable: true,
+    allowMultiple: true, // Multiple characters can be on floor
     description: 'Floor'
   },
   FLOOR_CARPET: {
     id: 'floor_carpet',
     char: '·',
     walkable: true,
+    allowMultiple: true,
     description: 'Carpeted floor'
   },
   FLOOR_TILE: {
     id: 'floor_tile',
     char: '░',
     walkable: true,
+    allowMultiple: true,
     description: 'Tiled floor'
   },
   
@@ -131,24 +136,28 @@ export const TILE_TYPES = {
     id: 'grass',
     char: '"',
     walkable: true,
+    allowMultiple: true, // Multiple characters can be on grass
     description: 'Grass'
   },
   ROAD: {
     id: 'road',
     char: '▪',
     walkable: true,
+    allowMultiple: true, // Multiple characters can be on road
     description: 'Road'
   },
   SIDEWALK: {
     id: 'sidewalk',
     char: '▫',
     walkable: true,
+    allowMultiple: true, // Multiple characters can be on sidewalk
     description: 'Sidewalk'
   },
   PATH: {
     id: 'path',
     char: '·',
     walkable: true,
+    allowMultiple: true, // Multiple characters can be on path
     description: 'Path'
   },
   
@@ -275,6 +284,7 @@ export const TILE_TYPES = {
     id: 'elevator',
     char: 'E',
     walkable: true,
+    allowMultiple: true, // Multiple characters can use elevator at once
     description: 'Elevator',
     interactable: true,
     interactionType: 'elevator'
@@ -304,9 +314,8 @@ export class Tile {
     // Ownership (for desks, beds, etc.)
     this.ownerId = null; // Character ID
     
-    // State
-    this.occupied = false;
-    this.occupiedBy = null; // Character ID
+    // State - now supports multiple occupants
+    this.occupants = []; // Array of character IDs
   }
   
   /**
@@ -320,7 +329,34 @@ export class Tile {
    * Check if a character can walk on this tile
    */
   isWalkable() {
-    return this.type.walkable && !this.occupied;
+    if (!this.type.walkable) return false;
+    
+    // If tile allows multiple occupants, always walkable
+    if (this.type.allowMultiple) return true;
+    
+    // Otherwise, only walkable if not occupied
+    return this.occupants.length === 0;
+  }
+  
+  /**
+   * Check if tile is occupied
+   */
+  isOccupied() {
+    return this.occupants.length > 0;
+  }
+  
+  /**
+   * Get first occupant (for backwards compatibility)
+   */
+  get occupiedBy() {
+    return this.occupants.length > 0 ? this.occupants[0] : null;
+  }
+  
+  /**
+   * Get all occupants
+   */
+  getOccupants() {
+    return [...this.occupants];
   }
   
   /**
@@ -338,19 +374,29 @@ export class Tile {
   }
   
   /**
-   * Set tile as occupied by a character
+   * Add a character to this tile
    */
   setOccupied(characterId) {
-    this.occupied = true;
-    this.occupiedBy = characterId;
+    if (!this.occupants.includes(characterId)) {
+      this.occupants.push(characterId);
+    }
   }
   
   /**
-   * Clear occupation
+   * Remove a specific character from this tile
+   */
+  removeOccupant(characterId) {
+    const index = this.occupants.indexOf(characterId);
+    if (index > -1) {
+      this.occupants.splice(index, 1);
+    }
+  }
+  
+  /**
+   * Clear all occupants
    */
   clearOccupied() {
-    this.occupied = false;
-    this.occupiedBy = null;
+    this.occupants = [];
   }
   
   /**

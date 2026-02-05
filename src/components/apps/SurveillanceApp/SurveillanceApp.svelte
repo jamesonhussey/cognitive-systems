@@ -1,5 +1,5 @@
 <script>
-  import { onMount, onDestroy } from 'svelte';
+  import { onMount, onDestroy, getContext } from 'svelte';
   import { get } from 'svelte/store';
   import { 
     simulation, 
@@ -17,13 +17,18 @@
   import FloorRenderer from './FloorRenderer.svelte';
   import SimulationControls from './SimulationControls.svelte';
   import CharacterList from './CharacterList.svelte';
+  import CharacterInspector from './CharacterInspector.svelte';
   
   // Props
   export let onClose = () => {};
   
+  // Get the openScan function from context (provided by Desktop)
+  const openScanContext = getContext('openScan');
+  
   // State
   let currentLocation = LOCATIONS.NEIGHBORHOOD;
   let showCharacterList = false;
+  let inspectedCharacter = null;  // Character being inspected (mutually exclusive with character list)
   let selectedCharacterId = null;
   
   // Check if simulation is initialized (should be started on login)
@@ -31,8 +36,15 @@
   
   // Derived data
   $: currentFloor = initialized ? worldMap.getFloor(currentLocation) : null;
-  $: locationCounts = initialized ? worldMap.getLocationCounts() : {};
   $: characters = $worldCharacters;
+  
+  // Compute location counts reactively from character data
+  // This updates whenever characters move (their sim.floor changes)
+  $: locationCounts = characters.reduce((counts, char) => {
+    const floor = char.sim?.floor || LOCATIONS.NEIGHBORHOOD;
+    counts[floor] = (counts[floor] || 0) + 1;
+    return counts;
+  }, {});
   
   // The simulation should already be running (started on login)
   // This app just provides a view into it
@@ -50,14 +62,50 @@
     worldMap.switchLocation(locationId);
   }
   
-  // Handle character selection
+  // Handle character selection from floor view - opens inspector
   function selectCharacter(characterId) {
     selectedCharacterId = characterId;
+    
+    // Find the character and open inspector
+    const character = characters.find(c => c.id === characterId);
+    if (character) {
+      inspectedCharacter = character;
+      showCharacterList = false;  // Mutual exclusivity
+    }
     
     // Pan to character's location
     const location = worldMap.getCharacterLocation(characterId);
     if (location !== currentLocation) {
       switchLocation(location);
+    }
+  }
+  
+  // Handle character selection from list - also opens inspector
+  function selectFromList(characterId) {
+    selectCharacter(characterId);
+  }
+  
+  // Toggle character list (closes inspector if open)
+  function toggleCharacterList() {
+    showCharacterList = !showCharacterList;
+    if (showCharacterList) {
+      inspectedCharacter = null;  // Mutual exclusivity
+    }
+  }
+  
+  // Close inspector
+  function closeInspector() {
+    inspectedCharacter = null;
+    selectedCharacterId = null;
+  }
+  
+  // Open .scan file in terminal
+  function openScanFile(character) {
+    // Use context to open the scan in a terminal
+    if (openScanContext) {
+      openScanContext(character);
+    } else {
+      console.warn('[SurveillanceApp] No openScan context available');
     }
   }
 </script>
@@ -96,7 +144,7 @@
       
       <button 
         class="toggle-list-btn"
-        on:click={() => showCharacterList = !showCharacterList}
+        on:click={toggleCharacterList}
       >
         {showCharacterList ? 'Hide' : 'Show'} Character List
       </button>
@@ -116,11 +164,19 @@
     </div>
     
     {#if showCharacterList}
-      <div class="character-panel">
+      <div class="side-panel">
         <CharacterList 
           {characters}
           {selectedCharacterId}
-          on:select={(e) => selectCharacter(e.detail)}
+          on:select={(e) => selectFromList(e.detail)}
+        />
+      </div>
+    {:else if inspectedCharacter}
+      <div class="side-panel">
+        <CharacterInspector 
+          character={inspectedCharacter}
+          on:close={closeInspector}
+          on:openScan={(e) => openScanFile(e.detail)}
         />
       </div>
     {/if}
@@ -280,7 +336,7 @@
     color: #666;
   }
   
-  .character-panel {
+  .side-panel {
     width: 250px;
     background: #0d0d0d;
     border-left: 1px solid #222;

@@ -7,6 +7,9 @@
 
   // Optional: patient ID to load (passed when opening from assignment)
   export let patientId = null;
+  
+  // Optional: character object to load (passed when opening from .scan)
+  export let character = null;
 
   let inputElement;
   let outputContainer;
@@ -16,14 +19,36 @@
   let outputLines = [];
   let shouldScrollToBottom = false;
   
-  // File system - only initialized if we have a patient
+  // File system - initialized from patient or character
   let fs = null;
   let patientManifest = null;
+  let isScanMode = false;  // True if viewing a .scan file (read-only surveillance)
+  
+  // Track loaded IDs to prevent unnecessary rebuilds
+  let loadedPatientId = null;
+  let loadedCharacterId = null;
 
-  // Load patient if ID provided
-  $: if (patientId) {
+  // Load patient if ID provided (only when patient changes)
+  $: if (patientId && !character && patientId !== loadedPatientId) {
     fs = loadPatient(patientId);
     patientManifest = getPatientManifest(patientId);
+    isScanMode = false;
+    loadedPatientId = patientId;
+    loadedCharacterId = null;
+  }
+  
+  // Load character file system if character provided (.scan mode)
+  // Only rebuild when a DIFFERENT character is loaded, not on every update
+  $: if (character && character.fileSystem && character.id !== loadedCharacterId) {
+    // Create a new FileSystem and populate it from the character's brain structure
+    const lastName = character.lastName || character.fullName?.split(' ').pop() || 'UNKNOWN';
+    const scanFs = new FileSystem(lastName.toUpperCase());
+    scanFs.buildFromStructure(character.fileSystem);
+    fs = scanFs;
+    patientManifest = null;
+    isScanMode = true;
+    loadedCharacterId = character.id;
+    loadedPatientId = null;
   }
 
   $: currentAccount = $gameState.currentAccount;
@@ -34,7 +59,26 @@
   $: prompt = fs ? `${fs.getCurrentPath()}>` : 'CA>';
 
   onMount(() => {
-    if (patientId && fs && patientManifest) {
+    if (character && fs && isScanMode) {
+      // Character scan loaded - show scan interface
+      outputLines = [
+        { text: '+===============================================================+', color: 'scan-header' },
+        { text: '|        VERITY SYSTEMS - COGNITIVE SCAN VIEWER v4.2.1          |', color: 'scan-header' },
+        { text: `|                    CLEARANCE LEVEL: ${clearanceLevel}                         |`, color: 'scan-header' },
+        { text: '+===============================================================+', color: 'scan-header' },
+        '',
+        { text: `Scan file loaded: ${character.lastName?.toUpperCase() || 'UNKNOWN'}.scan`, color: 'scan-info' },
+        { text: `Subject: ${character.fullName}`, color: 'scan-info' },
+        { text: `Employee ID: ${character.employeeId}`, color: 'muted' },
+        { text: `Department: ${character.department?.name || 'Unknown'}`, color: 'muted' },
+        { text: `Role: ${character.role?.title || 'Unknown'}`, color: 'muted' },
+        '',
+        { text: '[ SURVEILLANCE MODE - READ ONLY ]', color: 'scan-warning' },
+        '',
+        'Type "help" for available commands. Type "tree" to view cognitive structure.',
+        '',
+      ];
+    } else if (patientId && fs && patientManifest) {
       // Patient loaded - show patient interface
       outputLines = [
         { text: '+===============================================================+', color: 'header' },
@@ -378,6 +422,21 @@
 
   .line-error {
     color: var(--accent-error);
+  }
+
+  /* Scan mode styling (surveillance) */
+  .line-scan-header {
+    color: #22c55e;
+    text-shadow: 0 0 4px rgba(34, 197, 94, 0.4);
+  }
+
+  .line-scan-info {
+    color: #86efac;
+  }
+
+  .line-scan-warning {
+    color: #fbbf24;
+    font-weight: bold;
   }
 
   .input-line {

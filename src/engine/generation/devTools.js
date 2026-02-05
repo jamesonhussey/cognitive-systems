@@ -710,6 +710,127 @@ export function devListByDisposition(dispositionName = null) {
 }
 
 /**
+ * Show security worker schedules
+ */
+export function devShowSecuritySchedules() {
+  // Try to get from simulation first
+  let characters = null;
+  
+  if (typeof window !== 'undefined' && window._simulationCharacters) {
+    characters = window._simulationCharacters();
+  } else if (window._lastOffice) {
+    characters = window._lastOffice;
+  }
+  
+  if (!characters) {
+    console.log('No characters available. Run devGenerateOffice() or start the simulation first.');
+    return;
+  }
+  
+  const security = characters.filter(c => c.department?.id === 'security');
+  
+  if (security.length === 0) {
+    console.log('No security workers found.');
+    return;
+  }
+  
+  console.log('%c=== SECURITY SCHEDULES ===', 'color: #ff4444; font-weight: bold; font-size: 14px;');
+  console.log(`%c${security.length} security workers:`, 'color: #888;');
+  console.log('');
+  
+  const shiftColors = {
+    security_morning: '#ffcc00',
+    security_evening: '#ff8800',
+    security_night: '#6666ff'
+  };
+  
+  const shiftCounts = { security_morning: 0, security_evening: 0, security_night: 0 };
+  
+  for (const char of security) {
+    const schedule = char.sim?.schedule || null;
+    const scheduleId = schedule?.id || 'unknown';
+    const scheduleName = schedule?.name || 'Unknown';
+    const color = shiftColors[scheduleId] || '#888';
+    
+    shiftCounts[scheduleId] = (shiftCounts[scheduleId] || 0) + 1;
+    
+    console.log(`%c${char.fullName}`, 'font-weight: bold;');
+    console.log(`  Role: ${char.role.title}`);
+    console.log(`  %cSchedule: ${scheduleName}`, `color: ${color};`);
+    
+    if (char.sim) {
+      console.log(`  Current State: ${char.sim.state}`);
+      console.log(`  Intention: ${char.sim.intention}`);
+      console.log(`  Action: ${char.sim.currentAction}`);
+      console.log(`  Location: Floor ${char.sim.floor}, (${char.sim.x}, ${char.sim.y})`);
+    }
+    console.log('');
+  }
+  
+  console.log('%c=== SHIFT DISTRIBUTION ===', 'color: #22d3ee; font-weight: bold;');
+  console.log(`  Morning Shift (6AM-2PM): ${shiftCounts.security_morning}`);
+  console.log(`  Evening Shift (2PM-10PM): ${shiftCounts.security_evening}`);
+  console.log(`  Night Shift (10PM-6AM): ${shiftCounts.security_night}`);
+  
+  const total = shiftCounts.security_morning + shiftCounts.security_evening + shiftCounts.security_night;
+  if (total < 3) {
+    console.log('%c⚠ Warning: Not all shifts are covered!', 'color: #ff4444;');
+  } else {
+    console.log('%c✓ All shifts have coverage', 'color: #22c55e;');
+  }
+}
+
+/**
+ * Show simulation time and character states summary
+ */
+export function devShowSimulationStatus() {
+  if (typeof window === 'undefined') {
+    console.log('Not in browser context.');
+    return;
+  }
+  
+  const characters = window._simulationCharacters?.();
+  const time = window._simulationTime?.();
+  
+  if (!characters || !time) {
+    console.log('Simulation not running. Start the game and login first.');
+    return;
+  }
+  
+  console.log('%c=== SIMULATION STATUS ===', 'color: #22d3ee; font-weight: bold; font-size: 14px;');
+  console.log(`Time: ${String(time.hour).padStart(2, '0')}:${String(time.minute).padStart(2, '0')} (Day ${time.day})`);
+  console.log(`Characters: ${characters.length}`);
+  console.log('');
+  
+  // Group by state
+  const byState = {};
+  for (const char of characters) {
+    const state = char.sim?.state || 'unknown';
+    if (!byState[state]) byState[state] = [];
+    byState[state].push(char);
+  }
+  
+  console.log('%c=== BY STATE ===', 'color: #f59e0b; font-weight: bold;');
+  for (const [state, chars] of Object.entries(byState)) {
+    console.log(`  ${state}: ${chars.length}`);
+  }
+  console.log('');
+  
+  // Group by location
+  const byLocation = {};
+  for (const char of characters) {
+    const floor = char.sim?.floor || 'unknown';
+    if (!byLocation[floor]) byLocation[floor] = [];
+    byLocation[floor].push(char);
+  }
+  
+  console.log('%c=== BY LOCATION ===', 'color: #f59e0b; font-weight: bold;');
+  for (const [floor, chars] of Object.entries(byLocation)) {
+    console.log(`  ${floor}: ${chars.length}`);
+  }
+}
+
+/**
  * Initialize dev tools on window
  */
 export function initDevTools() {
@@ -725,6 +846,8 @@ export function initDevTools() {
     window.devShowFileSystem = devShowFileSystem;
     window.devShowTraits = devShowTraits;
     window.devShowDepartments = devShowDepartments;
+    window.devShowSecuritySchedules = devShowSecuritySchedules;
+    window.devShowSimulationStatus = devShowSimulationStatus;
     
     console.log('%c[Character Generation Dev Tools Loaded]', 'color: #22d3ee; font-weight: bold;');
     console.log('%cAvailable commands:', 'color: #888;');
@@ -740,5 +863,7 @@ export function initDevTools() {
     console.log('  devShowFileSystem()         - Show inspected character\'s files');
     console.log('  devShowTraits()             - List all traits');
     console.log('  devShowDepartments()        - Show department structure');
+    console.log('  devShowSecuritySchedules()  - Show security worker shifts');
+    console.log('  devShowSimulationStatus()   - Show simulation time & states');
   }
 }
