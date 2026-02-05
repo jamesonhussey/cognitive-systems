@@ -8,6 +8,7 @@
   import NotesApp from '../apps/NotesApp.svelte';
   import EmailApp from '../apps/EmailApp.svelte';
   import PlaceholderApp from '../apps/PlaceholderApp.svelte';
+  import SurveillanceApp from '../apps/SurveillanceApp/SurveillanceApp.svelte';
   import { onMount, setContext } from 'svelte';
   import { deliverPendingEmails } from '../../engine/content/EmailSystem.js';
   import { getPatientManifest } from '../../engine/content/PatientLoader.js';
@@ -58,6 +59,14 @@
       initialY: 120,
       initialWidth: 600,
       initialHeight: 450
+    },
+    surveillance: { 
+      title: 'Surveillance System', 
+      component: SurveillanceApp,
+      initialX: 50,
+      initialY: 20,
+      initialWidth: 1100,
+      initialHeight: 700
     }
   };
 

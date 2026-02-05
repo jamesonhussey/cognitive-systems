@@ -5,6 +5,7 @@
 
   const icons = [
     { id: 'terminal', label: 'CA Terminal', icon: '▣' },
+    { id: 'surveillance', label: 'Surveillance', icon: '◉' },
     { id: 'email', label: 'Email', icon: '✉' },
     { id: 'notes', label: 'Notes', icon: '📋' },
     { id: 'casefile', label: 'Case Files', icon: '📁' },

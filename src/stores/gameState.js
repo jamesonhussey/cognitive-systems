@@ -1,5 +1,6 @@
 import { writable, derived } from 'svelte/store';
 import { saveAccounts, loadAccounts } from '../engine/storage/SaveManager.js';
+import { simulationManager } from '../engine/simulation/SimulationManager.js';
 
 // Base commands that are ALWAYS available (free updates post-launch go here)
 export const BASE_COMMANDS = ['help', 'cd', 'dir', 'type', 'cls', 'clear', 'tree'];
@@ -20,6 +21,10 @@ function createGameState() {
     createAccount: (firstName, lastName, password) => {
       const username = `${firstName.toLowerCase()}.${lastName.charAt(0).toLowerCase()}`;
       const email = `${username}@verity-systems.com`;
+      
+      // Generate simulation data for new account
+      console.log('[GameState] Creating new account, generating simulation...');
+      const simulationData = simulationManager.generateNewSimulation();
       
       const newAccount = {
         id: crypto.randomUUID(),
@@ -55,7 +60,10 @@ function createGameState() {
         notes: [],
         
         // Flags for story progression
-        flags: {}
+        flags: {},
+        
+        // SIMULATION DATA - Generated office and characters
+        simulationData: simulationData
       };
 
       update(state => {
@@ -67,12 +75,16 @@ function createGameState() {
           currentAccount: newAccount
         };
       });
+      
+      // Start simulation for the new account
+      simulationManager.startSimulation(newAccount.id, newAccount.simulationData);
 
       return newAccount;
     },
 
     login: (username, password) => {
       let result = { success: false, error: null };
+      let loggedInAccount = null;
       
       update(state => {
         const account = state.accounts.find(
@@ -81,17 +93,44 @@ function createGameState() {
         
         if (account) {
           result.success = true;
+          loggedInAccount = account;
           return { ...state, currentAccount: account };
         } else {
           result.error = 'Invalid username or password';
           return state;
         }
       });
+      
+      // Start simulation after successful login
+      if (result.success && loggedInAccount) {
+        console.log('[GameState] Login successful, starting simulation...');
+        simulationManager.startSimulation(loggedInAccount.id, loggedInAccount.simulationData);
+      }
 
       return result;
     },
 
     logout: () => {
+      // Save simulation state before logout
+      if (simulationManager.isRunning()) {
+        const simState = simulationManager.getSimulationState();
+        // Update the account with latest simulation state
+        update(state => {
+          if (state.currentAccount) {
+            const updatedAccount = { ...state.currentAccount, simulationData: simState };
+            const accounts = state.accounts.map(a => 
+              a.id === updatedAccount.id ? updatedAccount : a
+            );
+            saveAccountsToStorage(accounts);
+            return { ...state, accounts };
+          }
+          return state;
+        });
+      }
+      
+      // Stop the simulation
+      simulationManager.stopSimulation();
+      
       update(state => ({ ...state, currentAccount: null }));
     },
 
@@ -236,4 +275,12 @@ export function getAllUnlockedCommands(account) {
 // Initialize on load
 if (typeof window !== 'undefined') {
   gameState.loadAccounts();
+  
+  // Listen for simulation auto-save events
+  window.addEventListener('simulation-autosave', (event) => {
+    const { accountId, simulationData } = event.detail;
+    
+    gameState.updateAccount({ simulationData });
+    console.log('[GameState] Auto-saved simulation data');
+  });
 }

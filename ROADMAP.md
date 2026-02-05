@@ -27,25 +27,31 @@
 - [x] Paired memory generation for significant relationships
 - [x] One-sided relationships (unrequited love, one-way friendships, grudges)
 
-## Phase 2: Simulation Core
-- [ ] Create simulation tick system (real-time, configurable speed)
-- [ ] Define office layout (3-4 floors + living quarters, rooms, pathfinding grid)
-- [ ] Character state machine (Working, Break, Chatting, Sleeping, Anxious, etc.)
-- [ ] Basic movement/pathfinding between locations
+## Phase 2: Simulation Core (In Progress)
+- [x] Create simulation tick system (real-time, configurable speed)
+- [x] Define office layout (4 floors, rooms, pathfinding grid)
+- [x] Define neighborhood layout (company town with houses)
+- [x] Character state machine (Working, Break, Commuting, Sleeping, Leisure, etc.)
+- [x] Basic movement/pathfinding (A* algorithm)
+- [x] Schedule system (role-based daily schedules, security shifts)
+- [x] Need system (energy, social, stress - basic tracking)
+- [x] Simulation Manager (init on login, auto-save, persistence)
+- [x] Integrate simulation with account system (generate on new account)
 - [ ] Mood system (affected by traits, events, relationships)
-- [ ] Need system (social, rest/fatigue, productivity pressure)
-- [ ] Sleep cycle system (schedules, fatigue, dormitory use)
+- [ ] Sleep cycle system (fatigue affects behavior)
 - [ ] Priority-driven behavior (characters act on highest priority when possible)
 - [ ] Character-to-character interactions
 - [ ] Relationship changes from interactions
 
-## Phase 3: Office View App
-- [ ] ASCII renderer for office floors
-- [ ] Floor switching (navigation between floors)
-- [ ] Character symbols with movement animation
-- [ ] Click-to-inspect character details
+## Phase 3: Surveillance View App (In Progress - Merged with Phase 2)
+- [x] ASCII renderer for floors and neighborhood
+- [x] Floor/location switching
+- [x] Character symbols with real-time position updates
+- [x] Speed controls (pause, 1x, 2x, 4x)
+- [x] Character list panel
+- [ ] Click-to-inspect character details (Character Inspector)
 - [ ] Character status panel (mood, activity, thoughts)
-- [ ] Real-time updates synced with simulation
+- [ ] Zoom and pan controls
 
 ## Phase 4: Edit System
 - [ ] Structured file format (editable fields, locked fields)

@@ -47,6 +47,10 @@
         <span class="menu-icon">▣</span>
         <span>CA Terminal</span>
       </button>
+      <button class="menu-item" on:click={() => openApp('surveillance')}>
+        <span class="menu-icon">◉</span>
+        <span>Surveillance System</span>
+      </button>
       <button class="menu-item" on:click={() => openApp('email')}>
         <span class="menu-icon">✉</span>
         <span>Email</span>
